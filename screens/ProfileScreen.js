@@ -18,7 +18,6 @@ import { collection, query, where, getDocs, doc, updateDoc } from 'firebase/fire
 import { getAuth } from 'firebase/auth';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 
-
 const formatValue = (value) => {
   if (value === null || value === undefined) return 'N/A';
   if (typeof value === 'object') {
@@ -121,6 +120,7 @@ const ProfileScreen = ({ navigation }) => {
           const cheerleadersData = cheerleadersSnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
 
           setPlayers(playersData);
+          console.log(playersData);
           setCheerleaders(cheerleadersData);
         } catch (error) {
           console.error('Error al obtener los registros:', error);
@@ -135,6 +135,7 @@ const ProfileScreen = ({ navigation }) => {
   }, [loginData.id]);
 
   const getStatusStyle = (status) => {
+    console.log(status);
     switch(status) {
       case 'Completo':
         return { color: 'green' };
@@ -204,7 +205,7 @@ const ProfileScreen = ({ navigation }) => {
   if (loading) {
     return (
       <View style={styles.container}>
-        <ActivityIndicator size="large" color="#ffbe00" />
+        <ActivityIndicator size="large" color="#b51f28" />
         <Text style={styles.loadingText}>Cargando datos del usuario...</Text>
       </View>
     );
@@ -496,7 +497,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   pagosButton: {
-    backgroundColor: '#ffbe00',
+    backgroundColor: '#b51f28',
   },
   equipmentButton: {
     backgroundColor: '#2c3e50',
@@ -520,7 +521,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: 30,
     right: 30,
-    backgroundColor: '#ffbe00',
+    backgroundColor: '#b51f28',
     borderRadius: 30,
     paddingHorizontal: 20,
     paddingVertical: 15,
@@ -557,7 +558,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   retryButton: {
-    backgroundColor: '#ffbe00',
+    backgroundColor: '#b51f28',
     padding: 12,
     borderRadius: 5,
     width: '100%',

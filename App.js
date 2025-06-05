@@ -1,13 +1,12 @@
-// App.js
 import React, { useEffect, useState } from 'react';
-import { NavigationContainer } from '@react-navigation/native';
+import { NavigationContainer, createNavigationContainerRef } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
+import { StatusBar } from 'expo-status-bar';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 import { TouchableOpacity } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-
-import { auth } from './firebaseConfig'; // Asegúrate de que esté bien inicializado
+import { auth } from './firebaseConfig';
 
 // Screens
 import LoginScreen from './screens/LoginScreen';
@@ -22,6 +21,9 @@ import AvisosScreen from './screens/AvisosScreen';
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
 
+// Crear referencia de navegación
+export const navigationRef = createNavigationContainerRef();
+
 const MainTabs = () => (
   <Tab.Navigator
     screenOptions={({ route }) => ({
@@ -34,7 +36,7 @@ const MainTabs = () => (
         }
         return <Ionicons name={iconName} size={size} color={color} />;
       },
-      tabBarActiveTintColor: '#ffbe00',
+      tabBarActiveTintColor: '#b51f28',
       tabBarInactiveTintColor: 'gray',
       tabBarStyle: { backgroundColor: '#fff' },
     })}
@@ -47,9 +49,13 @@ const MainTabs = () => (
 const App = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [isRegistering, setIsRegistering] = useState(false);
 
   useEffect(() => {
-    const unsubscribe = auth.onAuthStateChanged((user) => {
+    const unsubscribe = auth.onAuthStateChanged(async (user) => {
+      // Ignorar cambios durante el registro
+      if (isRegistering) return;
+      
       console.log('Current user:', user?.uid);
       setIsLoggedIn(!!user);
       setIsLoading(false);
@@ -66,28 +72,33 @@ const App = () => {
       clearTimeout(timeout);
       unsubscribe();
     };
-  }, []);
+  }, [isRegistering]);
 
   if (isLoading) {
-    return null; // Aquí podrías mostrar un SplashScreen
+    return null;
   }
 
   return (
     <SafeAreaProvider>
-      <NavigationContainer>
+      <StatusBar style="dark" backgroundColor="#ffffff" />
+      <NavigationContainer ref={navigationRef}>
         <Stack.Navigator initialRouteName={isLoggedIn ? 'MainTabs' : 'Login'}>
           {!isLoggedIn ? (
             <>
-              <Stack.Screen
-                name="Login"
-                component={LoginScreen}
-                options={{ headerShown: false }}
+              <Stack.Screen 
+                name="Login" 
+                component={LoginScreen} 
+                options={{ headerShown: false }} 
               />
-              <Stack.Screen
-                name="Register"
-                component={RegisterScreen}
-                options={{ headerShown: false }}
-              />
+              <Stack.Screen name="Register">
+                {(props) => (
+                  <RegisterScreen 
+                    {...props} 
+                    setIsRegistering={setIsRegistering} 
+                    options={{ headerShown: false }}
+                  />
+                )}
+              </Stack.Screen>
               <Stack.Screen
                 name="ForgotPassword"
                 component={ForgotPasswordScreen}

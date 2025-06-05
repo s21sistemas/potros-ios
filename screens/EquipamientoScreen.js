@@ -17,12 +17,13 @@ import { db } from '../firebaseConfig';
 const { width, height } = Dimensions.get('window');
 
 const EquipamientoScreen = ({ route, navigation }) => {
+
   const [equipamiento, setEquipamiento] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [asignados, setAsignados] = useState([]);
   const { jugadorId } = route.params;
-
+  
   useEffect(() => {
     const fetchEquipamiento = async () => {
       try {
@@ -102,11 +103,10 @@ const EquipamientoScreen = ({ route, navigation }) => {
       </View>
     );
   };
-
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#ffbe00" />
+        <ActivityIndicator size="large" color="#b51f28" />
         <Text style={styles.loadingText}>Cargando equipamiento...</Text>
       </View>
     );
@@ -214,7 +214,7 @@ const styles = StyleSheet.create({
   },
   errorText: {
     fontSize: 16,
-    color: '#ffbe00',
+    color: '#b51f28',
     marginBottom: 20,
     textAlign: 'center',
   },
@@ -230,7 +230,7 @@ const styles = StyleSheet.create({
     color: '#777',
   },
   retryButton: {
-    backgroundColor: '#ffbe00',
+    backgroundColor: '#b51f28',
     paddingVertical: 12,
     paddingHorizontal: 25,
     borderRadius: 5,
@@ -256,7 +256,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#ffbe00',
+    color: '#b51f28',
     marginBottom: 5,
     textTransform: 'uppercase',
     textAlign: 'center',

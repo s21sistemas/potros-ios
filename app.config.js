@@ -2,11 +2,11 @@ import withFixedFirebaseModularHeaders from "./expo-plugins/withFixedFirebaseMod
 
 export default {
   expo: {
-    name: "ClubToros",
-    slug: "TorosClub",
+    name: "ClubPotros",
+    slug: "potrosclub",
     version: "1.0.0",
     orientation: "portrait",
-    icon: "./assets/logoToros.jpg",
+    icon: "./assets/logoPotros.jpg",
     userInterfaceStyle: "light",
     newArchEnabled: true,
     permissions: [
@@ -14,7 +14,7 @@ export default {
       "MEDIA_LIBRARY"
     ],
     splash: {
-      image: "./assets/logoToros.jpg",
+      image: "./assets/logoPotros.jpg",
       resizeMode: "contain",
       backgroundColor: "#ffffff"
     },
@@ -27,9 +27,9 @@ export default {
     ],
     ios: {
       supportsTablet: true,
-      bundleIdentifier: "com.mx.s1sistem.ClubToros",
-      icon: "./assets/logoToros.jpg",
-      buildNumber: "1.0.0",
+      bundleIdentifier: "com.mx.s1sistem.ClubPotros",
+      icon: "./assets/logoPotros.jpg",
+      buildNumber: "3.0.0",
       usesAppleSignIn: true,
       config: {
         usesNonExemptEncryption: false
@@ -41,27 +41,27 @@ export default {
       }
     },
     android: {
-      package: "com.mx.s1sistem.ClubToros",
+      package: "com.mx.s1sistem.ClubPotros",
       
       adaptiveIcon: {
-        foregroundImage: "./assets/torosIcon.png",
+        foregroundImage: "./assets/potrosIcon.png",
         backgroundColor: "#ffffff"
       },
-      icon: "./assets/logoToros.jpg",
+      icon: "./assets/potrosIcon.png",
       permissions: [
         "android.permission.USE_BIOMETRIC",
         "android.permission.USE_FINGERPRINT"
       ]
     },
     web: {
-      favicon: "./assets/torosIcon.png"
+      favicon: "./assets/potrosIcon.png"
     },
     extra: {
       eas: {
-        projectId: "940bd2e2-f080-48f0-9ef7-9723472315f9"
+        projectId: "c195b41a-aaf0-45e4-b072-361dcfa3a22a"
       }
     },
-    owner: "21sistema",
+    owner: "reapervic",
     plugins: [
       "expo-signature",
       withFixedFirebaseModularHeaders // <- referencia directa al plugin
