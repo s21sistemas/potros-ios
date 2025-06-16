@@ -1,6 +1,7 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 import { initializeFirestore } from 'firebase/firestore';
+import { getStorage } from 'firebase/storage';
 
 const firebaseConfig = {
   apiKey: "AIzaSyAxQEbSBtaSwO76yNhHpGst63jWZkqkzxE",
@@ -17,10 +18,13 @@ const app = initializeApp(firebaseConfig);
 // Auth sin persistencia personalizada (compatible con Expo Go)
 const auth = getAuth(app);
 
-// Firestore
+// Firestore con configuración optimizada para React Native
 const db = initializeFirestore(app, {
   experimentalForceLongPolling: true,
   useFetchStreams: false,
 });
 
-export { app, auth, db };
+// Storage
+const storage = getStorage(app);
+
+export { app, auth, db, storage };

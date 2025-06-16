@@ -8,7 +8,8 @@ import {
   ActivityIndicator,
   ScrollView,
   SafeAreaView,
-  Alert
+  Alert,
+  RefreshControl
 } from 'react-native';
 
 
@@ -52,6 +53,7 @@ const ProfileScreen = ({ navigation }) => {
   const [showMenu, setShowMenu] = useState(false);
   const [players, setPlayers] = useState([]);
   const [cheerleaders, setCheerleaders] = useState([]);
+  const [refreshing, setRefreshing] = useState(false);
   const [loginData, setLoginData] = useState({
     correo: '',
     id: '',
@@ -59,6 +61,49 @@ const ProfileScreen = ({ navigation }) => {
     ocupacion: '',
     rol: '',
   });
+
+  const fetchPlayersAndCheerleaders = async () => {
+    try {
+      const qPlayers = query(
+        collection(db, 'jugadores'), 
+        where('uid', '==', loginData.id),
+        where('activo', '==', 'activo')
+      );
+      
+      const qCheerleaders = query(
+        collection(db, 'porristas'), 
+        where('uid', '==', loginData.id),
+        where('activo', '==', 'activo')
+      );
+
+      const [playersSnapshot, cheerleadersSnapshot] = await Promise.all([
+        getDocs(qPlayers),
+        getDocs(qCheerleaders),
+      ]);
+
+      const playersData = playersSnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+      const cheerleadersData = cheerleadersSnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+
+      setPlayers(playersData);
+      console.log(playersData);
+      setCheerleaders(cheerleadersData);
+      setError(null); // ← AGREGA ESTA LÍNEA para limpiar errores
+    } catch (error) {
+      console.error('Error al obtener los registros:', error);
+      setError('Error al cargar los registros. Inténtalo de nuevo.');
+    }
+  };
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await fetchPlayersAndCheerleaders();
+    } catch (error) {
+      console.error('Error during refresh:', error);
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   useEffect(() => {
     const user = auth.currentUser;
@@ -97,40 +142,13 @@ const ProfileScreen = ({ navigation }) => {
 
   useEffect(() => {
     if (loginData.id) {
-      const fetchPlayersAndCheerleaders = async () => {
-        try {
-          const qPlayers = query(
-            collection(db, 'jugadores'), 
-            where('uid', '==', loginData.id),
-            where('activo', '==', 'activo')
-          );
-          
-          const qCheerleaders = query(
-            collection(db, 'porristas'), 
-            where('uid', '==', loginData.id),
-            where('activo', '==', 'activo')
-          );
-
-          const [playersSnapshot, cheerleadersSnapshot] = await Promise.all([
-            getDocs(qPlayers),
-            getDocs(qCheerleaders),
-          ]);
-
-          const playersData = playersSnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
-          const cheerleadersData = cheerleadersSnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
-
-          setPlayers(playersData);
-          console.log(playersData);
-          setCheerleaders(cheerleadersData);
-        } catch (error) {
-          console.error('Error al obtener los registros:', error);
-          setError('Error al cargar los registros. Inténtalo de nuevo.');
-        } finally {
-          setLoading(false);
-        }
+      const loadData = async () => {
+        setLoading(true);
+        await fetchPlayersAndCheerleaders();
+        setLoading(false);
       };
-
-      fetchPlayersAndCheerleaders();
+      
+      loadData();
     }
   }, [loginData.id]);
 
@@ -259,6 +277,16 @@ const ProfileScreen = ({ navigation }) => {
         style={styles.mainContent}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={['#b51f28']} // Android
+            tintColor={'#b51f28'} // iOS
+            title="Actualizando..." // iOS
+            titleColor={'#b51f28'} // iOS
+          />
+        }
       >
         <Text style={styles.sectionTitle}>Jugadores Registrados</Text>
         {players.length > 0 ? (

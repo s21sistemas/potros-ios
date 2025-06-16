@@ -1,70 +1,50 @@
-import withFixedFirebaseModularHeaders from "./expo-plugins/withFixedFirebaseModularHeaders";
-
 export default {
   expo: {
     name: "ClubPotros",
-    slug: "potrosclub",
-    version: "1.0.0",
+    slug: "potros-app-dev",
+    version: "1.1.0",
     orientation: "portrait",
     icon: "./assets/logoPotros.jpg",
     userInterfaceStyle: "light",
-    newArchEnabled: true,
-    permissions: [
-      "CAMERA",
-      "MEDIA_LIBRARY"
-    ],
     splash: {
       image: "./assets/logoPotros.jpg",
       resizeMode: "contain",
       backgroundColor: "#ffffff"
     },
     assetBundlePatterns: ["**/*"],
-    fonts: [
-      {
-        name: "MiFuente",
-        file: "./assets/fonts/MiFuente.ttf"
-      }
-    ],
     ios: {
       supportsTablet: true,
       bundleIdentifier: "com.mx.s1sistem.ClubPotros",
+      buildNumber: "2.0.5",
       icon: "./assets/logoPotros.jpg",
-      buildNumber: "3.0.0",
-      usesAppleSignIn: true,
+      deploymentTarget: "15.1",
       config: {
         usesNonExemptEncryption: false
       },
       infoPlist: {
+        UIDeviceFamily: [1, 2],
+        UISupportedInterfaceOrientations: [
+          "UIInterfaceOrientationPortrait",
+          "UIInterfaceOrientationPortraitUpsideDown"
+        ],
+        "UISupportedInterfaceOrientations~ipad": [
+          "UIInterfaceOrientationPortrait",
+          "UIInterfaceOrientationPortraitUpsideDown",
+          "UIInterfaceOrientationLandscapeLeft",
+          "UIInterfaceOrientationLandscapeRight"
+        ],
         NSPhotoLibraryUsageDescription: "Permite acceder a tus fotos para subir imágenes",
-        NSCameraUsageDescription: "Permite tomar fotos para subir a la aplicación",
-        ITSAppUsesNonExemptEncryption: false
+        NSCameraUsageDescription: "Permite tomar fotos para subir a la aplicación"
       }
     },
     android: {
-      package: "com.mx.s1sistem.ClubPotros",
-      
-      adaptiveIcon: {
-        foregroundImage: "./assets/potrosIcon.png",
-        backgroundColor: "#ffffff"
-      },
-      icon: "./assets/potrosIcon.png",
-      permissions: [
-        "android.permission.USE_BIOMETRIC",
-        "android.permission.USE_FINGERPRINT"
-      ]
-    },
-    web: {
-      favicon: "./assets/potrosIcon.png"
+      package: "com.mx.s1sistem.ClubPotros"
     },
     extra: {
       eas: {
-        projectId: "c195b41a-aaf0-45e4-b072-361dcfa3a22a"
+        projectId: "96646753-98e0-46cc-b89d-e81c771fccb1"
       }
     },
-    owner: "reapervic",
-    plugins: [
-      "expo-signature",
-      withFixedFirebaseModularHeaders // <- referencia directa al plugin
-    ]
+    owner: "s21sistemas"
   }
 };

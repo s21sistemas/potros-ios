@@ -1483,7 +1483,7 @@ const FirmaFotoForm = ({ formData, setFormData, errors, onNext, signatureRef }) 
       <View style={styles.formContainer}>
         <Text style={styles.title}>Firma y Foto </Text>
         
-        {/*<Text style={styles.sectionTitle}>Firma:</Text>
+        <Text style={styles.sectionTitle}>Firma:</Text>
         <View style={styles.signatureContainer} {...panResponder.panHandlers}>
           <Svg style={styles.canvas} ref={signatureRef}>
             {paths.map((path, index) => (
@@ -1507,7 +1507,7 @@ const FirmaFotoForm = ({ formData, setFormData, errors, onNext, signatureRef }) 
           <Text style={styles.secondaryButtonText}>Limpiar Firma</Text>
         </TouchableOpacity>
         {errors.firma && <Text style={styles.errorText}>{errors.firma}</Text>}
-        */}
+        
         
         <Text style={styles.sectionTitle}>Foto del Jugador:</Text>
         {formData.foto_jugador && (
@@ -1765,12 +1765,16 @@ const styles = StyleSheet.create({
   },
   signatureContainer: {
     height: 200,
-    borderWidth: 1,
-    borderColor: '#000',
-    marginBottom: 10,
+    borderWidth: 2,
+    borderColor: '#DDD',
+    borderRadius: 10,
+    marginBottom: 15,
+    backgroundColor: '#FAFAFA',
   },
   canvas: {
     flex: 1,
+    width: '100%',
+    height: '100%',
   },
   imagePreview: {
     width: 150,
