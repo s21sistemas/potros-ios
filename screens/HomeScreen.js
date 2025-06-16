@@ -1263,6 +1263,7 @@ const DatosEscolaresMedicosForm = ({ formData, setFormData, errors, onNext }) =>
         style={styles.picker}
       >
         <Picker.Item label="Selecciona el grado escolar" value="" />
+        <Picker.Item label="Kinder" value="kinder" />
         <Picker.Item label="Primaria" value="primaria" />
         <Picker.Item label="Secundaria" value="secundaria" />
         <Picker.Item label="Preparatoria" value="preparatoria" />

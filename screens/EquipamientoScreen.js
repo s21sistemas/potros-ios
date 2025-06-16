@@ -8,7 +8,8 @@ import {
   SafeAreaView,
   Dimensions,
   Platform,
-  FlatList
+  FlatList,
+  RefreshControl, ScrollView
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { collection, query, where, getDocs } from 'firebase/firestore';
@@ -17,93 +18,121 @@ import { db } from '../firebaseConfig';
 const { width, height } = Dimensions.get('window');
 
 const EquipamientoScreen = ({ route, navigation }) => {
-
   const [equipamiento, setEquipamiento] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [asignados, setAsignados] = useState([]);
+  const [refreshing, setRefreshing] = useState(false);
   const { jugadorId } = route.params;
   
-  useEffect(() => {
-    const fetchEquipamiento = async () => {
-      try {
-        setLoading(true);
-        const q = query(
-          collection(db, 'equipamiento'), 
-          where('jugadorId.value', '==', jugadorId)
-        );
+  const fetchEquipamiento = async () => {
+    try {
+      setLoading(true);
+      console.log('Buscando equipamiento para jugadorId:', jugadorId);
+      
+      const q = query(
+        collection(db, 'equipamiento'), 
+        where('jugadorId.value', '==', jugadorId)
+      );
+      
+      const querySnapshot = await getDocs(q);
+      
+      if (!querySnapshot.empty) {
+        const docData = querySnapshot.docs[0].data();
+        console.log('Datos completos de Firestore:', JSON.stringify(docData, null, 2));
         
-        const querySnapshot = await getDocs(q);
-        
-        if (!querySnapshot.empty) {
-          const docData = querySnapshot.docs[0].data();
-          setEquipamiento(docData);
-          
-          // Filtrar solo los items asignados
-          const itemsAsignados = [
-            { nombre: 'Jersey', asignado: docData.jersey, devuelto: null },
-            { nombre: 'Short', asignado: docData.short, devuelto: null },
-            { nombre: 'Leggings', asignado: docData.leggings, devuelto: null },
-            { nombre: 'Uniforme de Entrenamiento', asignado: docData.uniforme_entrenamiento, devuelto: null },
-            { nombre: 'Casco', asignado: docData.casco, devuelto: docData.devuelto },
-            { nombre: 'Hombreras', asignado: docData.hombreras, devuelto: null },
-            { nombre: 'Guardas', asignado: docData.guardas, devuelto: null }
-          ].filter(item => item.asignado);
-          
-          setAsignados(itemsAsignados);
-        } else {
-          setError('No se encontró registro de equipamiento');
-        }
-      } catch (err) {
-        console.error('Error al obtener equipamiento:', err);
-        setError('Error al cargar el equipamiento');
-      } finally {
-        setLoading(false);
+        setEquipamiento(docData);
+        const itemsAsignados = processEquipamientoAsignado(docData);
+        console.log('Items asignados procesados:', itemsAsignados);
+        setAsignados(itemsAsignados);
+      } else {
+        setError('No se encontró registro de equipamiento');
       }
-    };
+    } catch (err) {
+      console.error('Error al obtener equipamiento:', err);
+      setError('Error al cargar el equipamiento');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
 
+  useEffect(() => {
     fetchEquipamiento();
   }, [jugadorId]);
 
+  const onRefresh = () => {
+    setRefreshing(true);
+    fetchEquipamiento();
+  };
+
+  const processEquipamientoAsignado = (docData) => {
+    const itemsAsignados = [];
+    const jugadorNombre = docData.jugadorId?.label || 'Jugador desconocido';
+
+    if (Array.isArray(docData.equipamiento_asignado)) {
+      docData.equipamiento_asignado.forEach((item) => {
+        if (!item) return;
+
+        const itemCompleto = {
+          id: `${item.label || 'item'}_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+          nombre: item.label || 'Sin nombre',
+          jugador: jugadorNombre,
+          fecha_asignacion: docData.fecha_asignacion || 'No especificada',
+          fecha_entrega: docData.fecha_entrega || 'No especificada',
+          devuelto: docData.devuelto || 'NO',
+          asignado: true,
+          ...item, // Incluye TODOS los campos del item
+        };
+
+        itemsAsignados.push(itemCompleto);
+      });
+    }
+
+    return itemsAsignados;
+  };
+
   const renderEquipoItem = ({ item }) => {
+    const excludedKeys = ['id', 'nombre', 'jugador', 'fecha_asignacion', 'fecha_entrega', 'devuelto', 'asignado'];
+    const dynamicFields = Object.keys(item).filter(key => !excludedKeys.includes(key));
+
     return (
       <View style={styles.equipoItem}>
-        <View style={styles.equipoInfo}>
-          <Text style={styles.equipoName}>{item.nombre}</Text>
-          {item.devuelto !== null && (
-            <Text style={styles.devueltoText}>Devuelto: {item.devuelto}</Text>
-          )}
+        <Text style={styles.equipoName}>{item.nombre}</Text>
+        
+        <View style={styles.detailRow}>
         </View>
-        <View style={styles.statusIndicator}>
-          <Ionicons 
-            name="checkmark-circle" 
-            size={24} 
-            color="#4CAF50" 
-          />
-          <Text style={styles.statusText}>ASIGNADO</Text>
+        
+        <View style={styles.detailRow}>
+          <Text style={styles.detailLabel}>Fecha asignación: </Text>
+          <Text style={styles.detailValue}>{item.fecha_asignacion}</Text>
+        </View>
+
+          {dynamicFields.map((field) => (
+            field !== 'value' && field !== 'label' && (
+              <View key={field} style={styles.detailRow}>
+                <Text style={styles.detailLabel}>
+                  {field.replace(/_/g, ' ')}: {/* Reemplaza todos los "_" por espacios */}
+                </Text>
+                <Text style={styles.detailValue}>
+                  {typeof item[field] === 'object' 
+                    ? JSON.stringify(item[field]) 
+                    : String(item[field])}
+                </Text>
+              </View>
+            )
+          ))}
+
+        <View style={[styles.statusBadge, item.devuelto === "NO" ? styles.statusPending : styles.statusReturned]}>
+          <Text style={styles.statusBadgeText}>
+            {item.devuelto === "NO" ? "PENDIENTE POR DEVOLVER" : "DEVUELTO"}
+          </Text>
         </View>
       </View>
     );
   };
 
-  const renderSection = (title, items) => {
-    const sectionItems = items.filter(item => item.asignado);
-    
-    if (sectionItems.length === 0) return null;
-    
-    return (
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>{title}</Text>
-        <FlatList
-          data={sectionItems}
-          renderItem={renderEquipoItem}
-          keyExtractor={(item, index) => index.toString()}
-          scrollEnabled={false}
-        />
-      </View>
-    );
-  };
-  if (loading) {
+  if (loading && !refreshing) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#b51f28" />
@@ -118,7 +147,10 @@ const EquipamientoScreen = ({ route, navigation }) => {
         <Text style={styles.errorText}>{error}</Text>
         <TouchableOpacity
           style={styles.retryButton}
-          onPress={() => setLoading(true)}
+          onPress={() => {
+            setError(null);
+            fetchEquipamiento();
+          }}
         >
           <Text style={styles.retryButtonText}>Reintentar</Text>
         </TouchableOpacity>
@@ -126,58 +158,48 @@ const EquipamientoScreen = ({ route, navigation }) => {
     );
   }
 
-  if (!equipamiento || asignados.length === 0) {
-    return (
-      <View style={styles.noDataContainer}>
-        <Text style={styles.noDataText}>No hay equipamiento asignado registrado</Text>
-      </View>
-    );
-  }
-
-  const uniformeItems = [
-    { nombre: 'Jersey', asignado: equipamiento.jersey },
-    { nombre: 'Short', asignado: equipamiento.short },
-    { nombre: 'Leggings', asignado: equipamiento.leggings },
-    { nombre: 'Uniforme de Entrenamiento', asignado: equipamiento.uniforme_entrenamiento }
-  ];
-
-  const proteccionItems = [
-    { nombre: 'Casco', asignado: equipamiento.casco, devuelto: equipamiento.devuelto },
-    { nombre: 'Hombreras', asignado: equipamiento.hombreras },
-    { nombre: 'Guardas', asignado: equipamiento.guardas }
-  ];
-
   return (
     <SafeAreaView style={styles.safeArea}>
-      <View style={styles.container}>
-        <View style={styles.header}>
-          {Platform.OS !== 'web' && (
-            <TouchableOpacity
-              onPress={() => navigation.goBack()}
-              style={styles.backButton}
-            >
-              <Ionicons name="arrow-back" size={24} color="#000" />
-            </TouchableOpacity>
-          )}
-          <Text style={styles.title}>EQUIPAMIENTO ASIGNADO</Text>
-          {equipamiento.numero && (
-            <Text style={styles.playerNumber}>Número: {equipamiento.numero}</Text>
-          )}
-        </View>
+       <ScrollView
+                style={styles.scrollView}
+                contentContainerStyle={styles.scrollContent}
+              >
+          <View style={styles.container}>
+            <View style={styles.header}>
+              <Text style={styles.title}>EQUIPAMIENTO ASIGNADO A: {equipamiento?.jugadorId?.label || 'Jugador'}</Text>
+              {equipamiento?.numero && (
+                <Text style={styles.playerNumber}>Número: {equipamiento.numero}</Text>
+              )}
+            </View>
 
-        {renderSection('Uniforme', uniformeItems)}
-        {renderSection('Protección', proteccionItems)}
-
-        <View style={styles.summaryCard}>
-          <Text style={styles.summaryTitle}>Resumen</Text>
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Total asignados:</Text>
-            <Text style={[styles.summaryValue, styles.asignadoText]}>
-              {asignados.length}
-            </Text>
+            <FlatList
+              data={asignados}
+              renderItem={renderEquipoItem}
+              keyExtractor={item => item.id}
+              refreshControl={
+                <RefreshControl
+                  refreshing={refreshing}
+                  onRefresh={onRefresh}
+                  colors={['#b51f28']}
+                  tintColor="#b51f28"
+                />
+              }
+              ListEmptyComponent={
+                <View style={styles.noDataContainer}>
+                  <Text style={styles.noDataText}>No hay equipamiento asignado</Text>
+                  <TouchableOpacity
+                    style={styles.retryButton}
+                    onPress={fetchEquipamiento}
+                  >
+                    <Text style={styles.retryButtonText}>Actualizar</Text>
+                  </TouchableOpacity>
+                </View>
+              }
+              contentContainerStyle={asignados.length === 0 ? { flex: 1 } : null}
+            />
           </View>
-        </View>
-      </View>
+
+    </ScrollView>
     </SafeAreaView>
   );
 };
@@ -192,6 +214,7 @@ const styles = StyleSheet.create({
     padding: 20,
     maxWidth: 800,
     width: '100%',
+    height:'150%',
     alignSelf: 'center'
   },
   loadingContainer: {
@@ -222,12 +245,13 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#f5f5f5',
     padding: 20,
   },
   noDataText: {
     fontSize: 16,
     color: '#777',
+    marginBottom: 20,
+    textAlign: 'center',
   },
   retryButton: {
     backgroundColor: '#b51f28',
@@ -246,6 +270,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 20,
     width: '100%',
+    position: 'relative',
   },
   backButton: {
     position: 'absolute',
@@ -254,7 +279,7 @@ const styles = StyleSheet.create({
     zIndex: 1,
   },
   title: {
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: 'bold',
     color: '#b51f28',
     marginBottom: 5,
@@ -262,100 +287,69 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   playerNumber: {
-    fontSize: 18,
+    fontSize: 16,
     color: '#333',
     fontWeight: '600',
     textAlign: 'center',
   },
-  section: {
+  equipoItem: {
     backgroundColor: '#fff',
-    borderRadius: 10,
+    borderRadius: 8,
     padding: 15,
-    marginBottom: 15,
+    marginBottom: 12,
     elevation: 2,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
     shadowRadius: 3,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 15,
-    paddingBottom: 5,
-    borderBottomWidth: 1,
-    borderBottomColor: '#eee',
-  },
-  equipoItem: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
-  },
-  equipoInfo: {
-    flex: 1,
   },
   equipoName: {
     fontSize: 16,
-    fontWeight: '500',
+    fontWeight: '600',
     color: '#333',
-  },
-  devueltoText: {
-    fontSize: 12,
-    color: '#777',
-    marginTop: 3,
-  },
-  statusIndicator: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 15,
-    backgroundColor: 'rgba(76, 175, 80, 0.1)',
-  },
-  statusText: {
-    marginLeft: 5,
-    fontSize: 12,
-    fontWeight: 'bold',
-    textTransform: 'uppercase',
-    color: '#4CAF50',
-  },
-  summaryCard: {
-    backgroundColor: '#fff',
-    borderRadius: 10,
-    padding: 15,
-    marginTop: 10,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-  },
-  summaryTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 15,
-    textAlign: 'center',
-  },
-  summaryRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
     marginBottom: 10,
   },
-  summaryLabel: {
-    fontSize: 16,
-    color: '#555',
+  detailRow: {
+    flexDirection: 'row',
+    marginTop: 4,
   },
-  summaryValue: {
-    fontSize: 16,
+  detailLabel: {
+    fontSize: 14,
+    color: '#666',
+    width: 120,
+    fontWeight: '500',
+  },
+  detailValue: {
+    fontSize: 14,
+    color: '#333',
+    flex: 1,
+  },
+  statusBadge: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 4,
+    marginTop: 10,
+  },
+  statusPending: {
+    backgroundColor: 'rgba(255, 160, 0, 0.1)',
+  },
+  statusReturned: {
+    backgroundColor: 'rgba(76, 175, 80, 0.1)',
+  },
+  statusBadgeText: {
+    fontSize: 12,
     fontWeight: 'bold',
+    color: '#333',
   },
-  asignadoText: {
-    color: '#4CAF50',
+   scrollView: {
+    width: "100%",
+    height: "150%",
+  },
+  scrollContent: {
+    padding: 20,
+    paddingBottom: 40,
+    height: "150%"
   },
 });
 
