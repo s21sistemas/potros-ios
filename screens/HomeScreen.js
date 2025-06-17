@@ -1797,7 +1797,7 @@ const DocumentacionForm = ({ formData, setFormData, onSubmit, uploadProgress, cu
       <View style={styles.formContainer}>
         <Text style={styles.title}>Reglamentación del equipo</Text>
         
-       {/*} {['ine_tutor', 'curp_jugador', 'acta_nacimiento', 'comprobante_domicilio'].map((field) => (
+       {['ine_tutor', 'curp_jugador', 'acta_nacimiento', 'comprobante_domicilio'].map((field) => (
           <View key={field} style={styles.formGroup}>
             <Text style={styles.label}>
               {field === 'ine_tutor' && 'INE del Tutor'}
@@ -1819,7 +1819,7 @@ const DocumentacionForm = ({ formData, setFormData, onSubmit, uploadProgress, cu
             
             {renderFileInfo(field)}
           </View>
-        ))}*/}
+        ))}
 
 
         {/* Sección de aceptación del reglamento */}
