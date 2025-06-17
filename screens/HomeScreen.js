@@ -75,7 +75,7 @@ const HomeScreen = ({ navigation }) => {
     'DatosContactoForm',
     'DatosEscolaresMedicosForm',
     ...(formData.tipo_inscripcion === 'transferencia' ? ['TransferenciaForm'] : []),
-    'FirmaForm',      // ← Nuevo paso separado
+    // 'FirmaForm',      // ← Nuevo paso separado
     'FotoForm',       // ← Nuevo paso separado
     'DocumentacionForm',
   ];
@@ -181,11 +181,11 @@ const safeUploadFile = async ({ uri, name, folder, type = null }) => {
         if (!formData.nombre) newErrors.nombre = 'Nombre es requerido';
         if (!formData.apellido_p) newErrors.apellido_p = 'Apellido paterno es requerido';
         break;
-      case 'FirmaForm':
-        if (!formData.firma || formData.firma === '' || !formData.firma.startsWith('data:image')) {
-          newErrors.firma = 'Captura tu firma';
-        }
-        break;
+      // case 'FirmaForm':
+      //   if (!formData.firma || formData.firma === '' || !formData.firma.startsWith('data:image')) {
+      //     newErrors.firma = 'Captura tu firma';
+      //   }
+      //   break;
       case 'FotoForm':
         if (!formData.foto_jugador) newErrors.foto_jugador = 'Sube una foto del jugador';
         break;
@@ -382,17 +382,17 @@ const handleSubmit = async () => {
 
     // 4. Subir firma si existe
     let firmaURL = null;
-    if (formData.firma && formData.firma !== '' && formData.firma.startsWith('data:image')) {
-      setCurrentUpload('Firma');
-      console.log('🔄 Subiendo firma a Firebase Storage...');
-      firmaURL = await safeUploadFile({
-        uri: formData.firma,  // Usar directamente formData.firma que ya es base64
-        name: `firma_${Date.now()}.png`,
-        folder: 'firmas',
-        type: 'image/png'
-      });
-      console.log('✅ Firma subida exitosamente:', firmaURL);
-    }
+    // if (formData.firma && formData.firma !== '' && formData.firma.startsWith('data:image')) {
+    //   setCurrentUpload('Firma');
+    //   console.log('🔄 Subiendo firma a Firebase Storage...');
+    //   firmaURL = await safeUploadFile({
+    //     uri: formData.firma,  // Usar directamente formData.firma que ya es base64
+    //     name: `firma_${Date.now()}.png`,
+    //     folder: 'firmas',
+    //     type: 'image/png'
+    //   });
+    //   console.log('✅ Firma subida exitosamente:', firmaURL);
+    // }
 
     // 5. Obtener temporada activa
     let temporadaActiva = null;
@@ -676,8 +676,8 @@ const processPayments = async (playerId, formData, temporadaActiva) => {
         return <DatosEscolaresMedicosForm formData={formData} setFormData={setFormData} errors={errors} onNext={handleNextStep} />;
       case 'TransferenciaForm':
         return <TransferenciaForm formData={formData} setFormData={setFormData} errors={errors} onNext={handleNextStep} />;
-      case 'FirmaForm':
-        return <FirmaForm formData={formData} setFormData={setFormData} errors={errors} onNext={handleNextStep} signatureViewRef={signatureViewRef} captureSignature={captureSignature} />;
+      // case 'FirmaForm':
+      //   return <FirmaForm formData={formData} setFormData={setFormData} errors={errors} onNext={handleNextStep} signatureViewRef={signatureViewRef} captureSignature={captureSignature} />;
       case 'FotoForm':
         return <FotoForm formData={formData} setFormData={setFormData} errors={errors} onNext={handleNextStep} />;
       case 'DocumentacionForm':
@@ -1797,7 +1797,7 @@ const DocumentacionForm = ({ formData, setFormData, onSubmit, uploadProgress, cu
       <View style={styles.formContainer}>
         <Text style={styles.title}>Reglamentación del equipo</Text>
         
-       {['ine_tutor', 'curp_jugador', 'acta_nacimiento', 'comprobante_domicilio'].map((field) => (
+       {/* {['ine_tutor', 'curp_jugador', 'acta_nacimiento', 'comprobante_domicilio'].map((field) => (
           <View key={field} style={styles.formGroup}>
             <Text style={styles.label}>
               {field === 'ine_tutor' && 'INE del Tutor'}
@@ -1819,7 +1819,7 @@ const DocumentacionForm = ({ formData, setFormData, onSubmit, uploadProgress, cu
             
             {renderFileInfo(field)}
           </View>
-        ))}
+        ))} */}
 
 
         {/* Sección de aceptación del reglamento */}
