@@ -4,12 +4,13 @@ import {
   Animated, Platform, PanResponder, Linking, ActivityIndicator,
   Image, Button, SafeAreaView, ScrollView, KeyboardAvoidingView
 } from 'react-native';
+import { captureRef } from 'react-native-view-shot';
 import { Picker } from '@react-native-picker/picker';
 import * as ImagePicker from 'expo-image-picker';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import Svg, { Path } from 'react-native-svg';
+import Svg, { Path, Rect } from 'react-native-svg';
 import { getStorage, ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
-import { getFirestore, collection, addDoc, query, where, getDocs, doc, updateDoc } from 'firebase/firestore';
+import { getFirestore, collection, addDoc, query, where, getDocs, doc, updateDoc, getDoc } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
 
 import { app } from '../firebaseConfig'; 
@@ -42,7 +43,7 @@ const HomeScreen = ({ navigation }) => {
     peso: '',
     tipo_inscripcion: '',
     foto_jugador: null,
-    firma: [],
+    firma: '',
     activo: 'no activo',
     numero_mfl: '000000',
     documentos: {
@@ -65,6 +66,7 @@ const HomeScreen = ({ navigation }) => {
   const [uploadProgress, setUploadProgress] = useState({});
   const [currentUpload, setCurrentUpload] = useState(null);
   const signatureRef = useRef(null);
+  const signatureViewRef = useRef(null);
   const [categoria, setCategoria] = useState(null);
   const steps = [
     'GeneroForm',
@@ -73,7 +75,8 @@ const HomeScreen = ({ navigation }) => {
     'DatosContactoForm',
     'DatosEscolaresMedicosForm',
     ...(formData.tipo_inscripcion === 'transferencia' ? ['TransferenciaForm'] : []),
-    'FirmaFotoForm',
+    'FirmaForm',      // ← Nuevo paso separado
+    'FotoForm',       // ← Nuevo paso separado
     'DocumentacionForm',
   ];
 
@@ -178,7 +181,12 @@ const safeUploadFile = async ({ uri, name, folder, type = null }) => {
         if (!formData.nombre) newErrors.nombre = 'Nombre es requerido';
         if (!formData.apellido_p) newErrors.apellido_p = 'Apellido paterno es requerido';
         break;
-      case 'FirmaFotoForm':
+      case 'FirmaForm':
+        if (!formData.firma || formData.firma === '' || !formData.firma.startsWith('data:image')) {
+          newErrors.firma = 'Captura tu firma';
+        }
+        break;
+      case 'FotoForm':
         if (!formData.foto_jugador) newErrors.foto_jugador = 'Sube una foto del jugador';
         break;
 
@@ -221,25 +229,33 @@ const safeUploadFile = async ({ uri, name, folder, type = null }) => {
   };
 
   const captureSignature = async () => {
-  if (!signatureRef.current) return null;
-  
-  try {
-    // Crear un canvas temporal para la firma
-    const canvas = await signatureRef.current.toDataURL();
-    
-    // En Android/iOS necesitamos convertir el data URL a un blob
-    if (Platform.OS !== 'web') {
-      const response = await fetch(canvas);
-      const blob = await response.blob();
-      return URL.createObjectURL(blob);
+    console.log('🟡 captureSignature ejecutándose...');
+    console.log('🟡 signatureViewRef:', signatureViewRef);
+    console.log('🟡 signatureViewRef.current:', signatureViewRef.current);
+    if (!signatureViewRef.current) {
+      console.log('❌ signatureViewRef.current es null');
+      return null;
     }
     
-    return canvas;
-  } catch (error) {
-    console.error('Error al capturar firma:', error);
-    return null;
-  }
-};
+    try {
+      console.log('📸 Iniciando captura de firma...');
+      
+      // Capturar la vista como imagen base64
+      const result = await captureRef(signatureViewRef, {
+        format: 'png',
+        quality: 0.8,
+        result: 'base64',
+      });
+      
+      const dataURL = `data:image/png;base64,${result}`;
+      console.log('✅ Firma capturada exitosamente:', dataURL.substring(0, 50) + '...');
+      
+      return dataURL;
+    } catch (error) {
+      console.error('❌ Error al capturar firma:', error);
+      return null;
+    }
+  };
   
 
   const handleSelectFile = async (field) => {
@@ -356,19 +372,26 @@ const handleSubmit = async () => {
       }
     }
 
+    // LOGS DE DEBUG - AGREGAR ESTAS LÍNEAS
+    console.log('🔍 VERIFICANDO FIRMA EN HANDLESUBMIT:');
+    console.log('  - formData.firma existe:', !!formData.firma);
+    console.log('  - formData.firma !== "":', formData.firma !== '');
+    console.log('  - empieza con data:image:', formData.firma?.startsWith('data:image'));
+    console.log('  - firma completa (primeros 100):', formData.firma?.substring(0, 100));
+    console.log('🏷️ CATEGORIA ANTES DE GUARDAR:', formData.categoria);
+
     // 4. Subir firma si existe
     let firmaURL = null;
-    if (formData.firma.length > 0) {
+    if (formData.firma && formData.firma !== '' && formData.firma.startsWith('data:image')) {
       setCurrentUpload('Firma');
-      const signatureImage = await captureSignature();
-      if (signatureImage) {
-        firmaURL = await safeUploadFile({
-          uri: signatureImage,
-          name: 'firma.png',
-          folder: 'firmas',
-          type: 'image/png'
-        });
-      }
+      console.log('🔄 Subiendo firma a Firebase Storage...');
+      firmaURL = await safeUploadFile({
+        uri: formData.firma,  // Usar directamente formData.firma que ya es base64
+        name: `firma_${Date.now()}.png`,
+        folder: 'firmas',
+        type: 'image/png'
+      });
+      console.log('✅ Firma subida exitosamente:', firmaURL);
     }
 
     // 5. Obtener temporada activa
@@ -418,6 +441,12 @@ const handleSubmit = async () => {
     const estatus = (estaIncompleto || documentosIncompletos) ? 'Incompleto' : 'Completo';
     
     console.log('status', estatus);
+    
+    // LOGS ANTES DE CREAR EL OBJETO
+    console.log('📄 DOCUMENTOS A GUARDAR:');
+    console.log('  - documentosSubidos:', documentosSubidos);
+    console.log('  - firmaURL:', firmaURL);
+    
     // 6. Crear objeto de registro
     const datosRegistro = {
       nombre: formData.nombre,
@@ -446,7 +475,7 @@ const handleSubmit = async () => {
       fecha_registro: new Date(),
       uid: uid,
       estatus,
-      ...(temporadaActiva && { temporadaId: temporadaActiva }),
+      ...(temporadaActiva && { temporadaId: temporadaActiva.value }),
       ...(formData.tipo_inscripcion === 'transferencia' && {
         transferencia: formData.transferencia
       })
@@ -454,7 +483,25 @@ const handleSubmit = async () => {
 
     // 7. Guardar en Firestore
     const coleccion = formData.tipo_inscripcion === 'porrista' ? 'porristas' : 'jugadores';
+    console.log('💾 DATOS COMPLETOS A GUARDAR:', JSON.stringify(datosRegistro, null, 2));
     const docRef = await addDoc(collection(db, coleccion), datosRegistro);
+
+
+    // AGREGAR ESTAS LÍNEAS PARA VERIFICAR
+    console.log('✅ DOCUMENTO GUARDADO CON ID:', docRef.id);
+    console.log('🔍 VERIFICANDO QUE SE GUARDÓ CORRECTAMENTE...');
+
+    // Leer el documento recién creado para verificar
+    const docSnap = await getDoc(doc(db, coleccion, docRef.id));
+    if (docSnap.exists()) {
+      const datosSalvados = docSnap.data();
+      console.log('📖 DATOS LEÍDOS DE FIREBASE:');
+      console.log('  - Tiene documentos:', !!datosSalvados.documentos);
+      console.log('  - Firma en documentos:', datosSalvados.documentos?.firma || 'NULL');
+      console.log('  - Documentos completos:', JSON.stringify(datosSalvados.documentos, null, 2));
+    } else {
+      console.log('❌ ERROR: No se pudo leer el documento recién creado');
+    }
 
     // 8. Procesar pagos
     await processPayments(docRef.id, formData, temporadaActiva);
@@ -486,8 +533,16 @@ const handleSubmit = async () => {
 const processPayments = async (playerId, formData, temporadaActiva) => {
   try {
     const costosCollection = formData.tipo_inscripcion === 'porrista' ? 'costos-porrista' : 'costos-jugador';
-    const costosQuery = collection(db, costosCollection);
+    const costosQuery = query(
+      collection(db, costosCollection),
+      where('temporadaId', '==', temporadaActiva),
+      where('categoria', '==', formData.categoria)
+    );
+    
     const costosSnapshot = await getDocs(costosQuery);
+    console.log(costosCollection);
+    console.log(costosQuery);
+    console.log(costosSnapshot);
     
     if (costosSnapshot.empty) {
       throw new Error(`No se encontraron costos configurados para ${formData.tipo_inscripcion}`);
@@ -495,6 +550,8 @@ const processPayments = async (playerId, formData, temporadaActiva) => {
 
     const costosDoc = costosSnapshot.docs[0];
     const costosData = costosDoc.data();
+    console.log('costos encontrados para la categoria')
+    console.log(costosData);
     const parseCost = (value) => parseInt(value || '0', 10);
     
     const nombreCompleto = `${formData.nombre} ${formData.apellido_p} ${formData.apellido_m}`;
@@ -508,7 +565,7 @@ const processPayments = async (playerId, formData, temporadaActiva) => {
       const total = inscripcion + coaching;
 
       const pagosPorrista = {
-        porristaId: playerId, // Usamos el playerId que recibimos como parámetro
+        porristaId: playerId,
         nombre: nombreCompleto,
         pagos: [
           {
@@ -542,17 +599,15 @@ const processPayments = async (playerId, formData, temporadaActiva) => {
       };
       await addDoc(collection(db, 'pagos_porristas'), pagosPorrista);
     } else {
+      // LÓGICA EXACTA DE ANDROID - crea inscripción, primera jornada y pesaje
       const inscripcion = parseCost(costosData.inscripcion);
-      const coaching = parseCost(costosData.coaching);
-      const tunel = parseCost(costosData.tunel);
-      const botiquin = parseCost(costosData.botiquin);
-      const equipamiento = parseCost(costosData.equipamiento);
+      const equipamiento = parseCost(costosData.primera_jornada); // CLAVE: toma de primera_jornada
       const pesaje = parseCost(costosData.pesaje);
       
-      const total = inscripcion + coaching + tunel + botiquin + equipamiento + pesaje;
+      const total = inscripcion + equipamiento + pesaje;
 
       const pagosJugador = {
-        jugadorId: playerId, // Usamos el playerId que recibimos como parámetro
+        jugadorId: playerId,
         nombre: nombreCompleto,
         categoria: formData.categoria,
         pagos: [
@@ -562,7 +617,7 @@ const processPayments = async (playerId, formData, temporadaActiva) => {
             descuento: '0',
             estatus: 'pendiente',
             fecha_pago: null,
-            submonto: 0,
+            submonto: inscripcion,
             monto: inscripcion,
             prorroga: false,
             fecha_limite: fechaLimite.toISOString().split('T')[0],
@@ -572,11 +627,11 @@ const processPayments = async (playerId, formData, temporadaActiva) => {
             total_abonado: 0
           },
           {
-            tipo: 'Equipamiento',
+            tipo: 'Primera jornada', // EXACTAMENTE como en Android
             estatus: 'pendiente',
             fecha_pago: null,
-            fecha_limite: null,
-            monto: equipamiento,
+            fecha_limite: fechaLimite.toISOString().split('T')[0],
+            monto: equipamiento, // Monto viene de costosData.primera_jornada
             metodo_pago: null,
             abono: 'NO',
             abonos: [],
@@ -587,7 +642,7 @@ const processPayments = async (playerId, formData, temporadaActiva) => {
             estatus: 'pendiente',
             fecha_pago: null,
             monto: pesaje,
-            metodo_pago: null,
+            metodo_pago: fechaLimite.toISOString().split('T')[0], // Como en Android
             abono: 'NO',
             abonos: [],
             total_abonado: 0
@@ -621,8 +676,10 @@ const processPayments = async (playerId, formData, temporadaActiva) => {
         return <DatosEscolaresMedicosForm formData={formData} setFormData={setFormData} errors={errors} onNext={handleNextStep} />;
       case 'TransferenciaForm':
         return <TransferenciaForm formData={formData} setFormData={setFormData} errors={errors} onNext={handleNextStep} />;
-      case 'FirmaFotoForm':
-        return <FirmaFotoForm formData={formData} setFormData={setFormData} errors={errors} onNext={handleNextStep} signatureRef={signatureRef} />;
+      case 'FirmaForm':
+        return <FirmaForm formData={formData} setFormData={setFormData} errors={errors} onNext={handleNextStep} signatureViewRef={signatureViewRef} captureSignature={captureSignature} />;
+      case 'FotoForm':
+        return <FotoForm formData={formData} setFormData={setFormData} errors={errors} onNext={handleNextStep} />;
       case 'DocumentacionForm':
         return <DocumentacionForm 
           formData={formData} 
@@ -947,6 +1004,9 @@ const DatosPersonalesForm = ({ formData, setFormData, errors, onNext }) => {
 
         if (fechaNac >= fechaInicio && fechaNac <= fechaFin) {
           categoriaAsignada = categoriaData.nombre_categoria;
+          console.log('🏷️ CATEGORIA ASIGNADA EN determinarCategoria:', categoriaAsignada);
+          console.log('   - Fecha nacimiento:', fechaNac.toISOString().split('T')[0]);
+          console.log('   - Rango categoria:', fechaInicio.toISOString().split('T')[0], 'a', fechaFin.toISOString().split('T')[0]);
           tempTemporadaInfo = {
             nombre: categoriaData.temporada,
             id: categoriaData.temporadaId
@@ -1361,30 +1421,118 @@ const TransferenciaForm = ({ formData, setFormData, errors, onNext }) => {
 };
 
 // Componente FirmaFotoForm
-const FirmaFotoForm = ({ formData, setFormData, errors, onNext, signatureRef }) => {
+const FirmaForm = ({ formData, setFormData, errors, onNext, signatureViewRef, captureSignature }) => {
+  const [firmaConfirmada, setFirmaConfirmada] = useState(false);
+  
+  // Estados para la firma en web (SVG)
   const [paths, setPaths] = useState([]);
   const [currentPath, setCurrentPath] = useState([]);
   const [isDrawing, setIsDrawing] = useState(false);
-  const [hasCameraPermission, setHasCameraPermission] = useState(null);
-  const [hasGalleryPermission, setHasGalleryPermission] = useState(null);
   const [scrollEnabled, setScrollEnabled] = useState(true);
 
-  useEffect(() => {
-    (async () => {
-      const cameraStatus = await ImagePicker.requestCameraPermissionsAsync();
-      const galleryStatus = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      setHasCameraPermission(cameraStatus.status === 'granted');
-      setHasGalleryPermission(galleryStatus.status === 'granted');
-    })();
-  }, []);
+  // Función para convertir SVG a Base64 (Web)
+  const convertSvgToBase64 = async () => {
+    try {
+      const svgWidth = 300;
+      const svgHeight = 150;
+      
+      let pathElements = '';
+      paths.forEach((path, index) => {
+        if (path.length > 0) {
+          const pathData = path
+            .map((point, pointIndex) => `${pointIndex === 0 ? 'M' : 'L'} ${point.x} ${point.y}`)
+            .join(' ');
+          pathElements += `<path d="${pathData}" stroke="black" stroke-width="3" fill="none"/>`;
+        }
+      });
+
+      const svgString = `
+        <svg width="${svgWidth}" height="${svgHeight}" xmlns="http://www.w3.org/2000/svg">
+          <rect width="100%" height="100%" fill="white"/>
+          ${pathElements}
+        </svg>
+      `;
+
+      return new Promise((resolve) => {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        const img = new Image();
+        
+        canvas.width = svgWidth;
+        canvas.height = svgHeight;
+        
+        ctx.fillStyle = 'white';
+        ctx.fillRect(0, 0, svgWidth, svgHeight);
+        
+        const svgBlob = new Blob([svgString], { type: 'image/svg+xml' });
+        const url = URL.createObjectURL(svgBlob);
+        
+        img.onload = () => {
+          ctx.drawImage(img, 0, 0);
+          const base64 = canvas.toDataURL('image/png');
+          URL.revokeObjectURL(url);
+          resolve(base64);
+        };
+        
+        img.src = url;
+      });
+    } catch (error) {
+      console.error('Error convirtiendo SVG a Base64:', error);
+      return null;
+    }
+  };
+
+  const handleConfirmSignature = async () => {
+    console.log('🔴 handleConfirmSignature llamado');
+    console.log('🔴 Platform.OS:', Platform.OS);
+    console.log('🔴 paths.length:', paths.length);
+    if (Platform.OS === 'web') {
+      // Para web - confirmar firma SVG
+      if (paths.length === 0) {
+        Alert.alert('Error', 'Por favor dibuja tu firma antes de confirmar');
+        return;
+      }
+
+      const base64 = await convertSvgToBase64();
+      console.log('🖊️ BASE64 GENERADO:', base64 ? 'SÍ' : 'NO');
+      if (base64) {
+        setFormData(prev => ({ ...prev, firma: base64 }));
+        console.log('🖊️ FIRMA GUARDADA EN FORMDATA:', base64.substring(0, 50) + '...');
+        setFirmaConfirmada(true);
+        Alert.alert('Éxito', 'Firma capturada correctamente');
+      }
+    } else {
+      // Para móvil - usar captureRef
+      if (paths.length === 0) {
+        Alert.alert('Error', 'Por favor dibuja tu firma antes de confirmar');
+        return;
+      }
+
+      const capturedSignature = await captureSignature();
+      if (capturedSignature) {
+        setFormData(prev => ({ ...prev, firma: capturedSignature }));
+        setFirmaConfirmada(true);
+        Alert.alert('Éxito', 'Firma capturada correctamente');
+      } else {
+        Alert.alert('Error', 'No se pudo capturar la firma. Inténtalo de nuevo.');
+      }
+    }
+  };
+
+  const handleClearSignature = () => {
+    setPaths([]);
+    setCurrentPath([]);
+    setFormData(prev => ({ ...prev, firma: '' }));
+    setFirmaConfirmada(false);
+  };
 
   const panResponder = PanResponder.create({
     onStartShouldSetPanResponder: () => true,
     onMoveShouldSetPanResponder: () => true,
     onPanResponderGrant: (event, gestureState) => {
-      setScrollEnabled(false);
       const { locationX, locationY } = event.nativeEvent;
       setIsDrawing(true);
+      setScrollEnabled(false);
       setCurrentPath([{ x: locationX, y: locationY }]);
     },
     onPanResponderMove: (event, gestureState) => {
@@ -1394,10 +1542,10 @@ const FirmaFotoForm = ({ formData, setFormData, errors, onNext, signatureRef }) 
     },
     onPanResponderRelease: () => {
       setIsDrawing(false);
-      setPaths((prevPaths) => [...prevPaths, currentPath]);
-      setCurrentPath([]);
-      setFormData(prev => ({ ...prev, firma: [...prev.firma, ...currentPath] }));
       setScrollEnabled(true);
+      const newPaths = [...paths, currentPath];
+      setPaths(newPaths);
+      setCurrentPath([]);
     },
   });
 
@@ -1408,45 +1556,144 @@ const FirmaFotoForm = ({ formData, setFormData, errors, onNext, signatureRef }) 
       .join(' ');
   };
 
-  const clearCanvas = () => {
-    setPaths([]);
-    setCurrentPath([]);
-    setFormData(prev => ({ ...prev, firma: [] }));
-  };
+  return (
+    <ScrollView 
+      style={styles.mainContent}
+      contentContainerStyle={styles.scrollContent}
+      showsVerticalScrollIndicator={false}
+      scrollEnabled={scrollEnabled}
+    >
+      <View style={styles.formContainer}>
+        <Text style={styles.title}>Captura tu firma</Text>
+        
+        {/* IMPORTANTE: Esta es la vista que se capturará */}
+        <View 
+          ref={signatureViewRef} 
+          style={styles.signatureContainer} 
+          {...panResponder.panHandlers}
+        >
+          <Svg style={styles.canvas} width={300} height={150}>
+            <Rect width="100%" height="100%" fill="white" stroke="#ddd" strokeWidth={1} />
+            {paths.map((path, index) => (
+              <Path
+                key={index}
+                d={getPathData(path)}
+                stroke="black"
+                strokeWidth={3}
+                fill="none"
+              />
+            ))}
+            <Path
+              d={getPathData(currentPath)}
+              stroke="black"
+              strokeWidth={3}
+              fill="none"
+            />
+          </Svg>
+        </View>
+        
+        <View style={styles.signatureButtonsContainer}>
+          <TouchableOpacity 
+            style={styles.signatureButton} 
+            onPress={handleConfirmSignature}
+          >
+            <Text style={styles.signatureButtonText}>Confirmar Firma</Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity 
+            style={[styles.signatureButton, styles.clearButton]} 
+            onPress={handleClearSignature}
+          >
+            <Text style={styles.signatureButtonText}>Limpiar</Text>
+          </TouchableOpacity>
+        </View>
 
- const handleSelectFoto = async () => {
-  if (!hasGalleryPermission) {
-    Alert.alert('Permisos denegados', 'Necesitas permitir el acceso a la galería para seleccionar una imagen. Cierra la app y ve a ""Configuración> Apps > Club Potros y otorga los permisos');
-    return;
-  }
-
-  try {
-    const result = await ImagePicker.launchImageLibraryAsync({
-      allowsEditing: true,
-      aspect: [4, 3],
-      quality: 0.3,
-    });
-
-    if (!result.canceled && result.assets && result.assets.length > 0) {
-      const selectedImage = result.assets[0];
-      setFormData(prev => ({
-        ...prev,
-        foto_jugador: {
-          uri: selectedImage.uri,
-          name: `foto_jugador_${Date.now()}.jpg`,
-          type: selectedImage.mimeType || 'image/jpeg'
-        }
-      }));
-    }
-  } catch (error) {
-    console.error('Error al seleccionar la foto:', error);
-    Alert.alert('Error', 'No se pudo seleccionar la imagen');
-  }
+        {/* Indicador de estado de la firma */}
+        {firmaConfirmada && formData.firma && formData.firma !== '' ? (
+          <View style={styles.successContainer}>
+            <Text style={styles.signatureStatus}>
+              ✅ Firma capturada correctamente
+            </Text>
+            {formData.firma.startsWith('data:image') && (
+              <Image
+                source={{ uri: formData.firma }}
+                style={styles.signaturePreview}
+                resizeMode="contain"
+              />
+            )}
+          </View>
+        ) : (
+          <View style={styles.warningContainer}>
+            <Text style={styles.warningText}>
+              ⚠️ Dibuja tu firma y presiona "Confirmar Firma" para continuar
+            </Text>
+          </View>
+        )}
+        
+        {errors.firma && <Text style={styles.errorText}>{errors.firma}</Text>}
+        
+        <TouchableOpacity 
+          style={[
+            styles.button,
+            (!firmaConfirmada || !formData.firma || formData.firma === '') && styles.disabledButton
+          ]} 
+          onPress={onNext}
+          disabled={!firmaConfirmada || !formData.firma || formData.firma === ''}
+        >
+          <Text style={styles.buttonText}>Continuar</Text>
+        </TouchableOpacity>
+      </View>
+    </ScrollView>
+  );
 };
+
+// Componente FotoForm - NUEVO
+const FotoForm = ({ formData, setFormData, errors, onNext }) => {
+  const [hasCameraPermission, setHasCameraPermission] = useState(null);
+  const [hasGalleryPermission, setHasGalleryPermission] = useState(null);
+  
+  useEffect(() => {
+    (async () => {
+      const cameraStatus = await ImagePicker.requestCameraPermissionsAsync();
+      const galleryStatus = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      setHasCameraPermission(cameraStatus.status === 'granted');
+      setHasGalleryPermission(galleryStatus.status === 'granted');
+    })();
+  }, []);
+
+  const handleSelectFoto = async () => {
+    if (!hasGalleryPermission) {
+      Alert.alert('Permisos denegados', 'Necesitas permitir el acceso a la galería');
+      return;
+    }
+
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        allowsEditing: true,
+        aspect: [4, 3],
+        quality: 0.3,
+      });
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        const selectedImage = result.assets[0];
+        setFormData(prev => ({
+          ...prev,
+          foto_jugador: {
+            uri: selectedImage.uri,
+            name: `foto_jugador_${Date.now()}.jpg`,
+            type: selectedImage.mimeType || 'image/jpeg'
+          }
+        }));
+      }
+    } catch (error) {
+      console.error('Error al seleccionar la foto:', error);
+      Alert.alert('Error', 'No se pudo seleccionar la imagen');
+    }
+  };
 
   const handleTakePhoto = async () => {
     if (!hasCameraPermission) {
-      Alert.alert('Permisos denegados', 'Necesitas permitir el acceso a la cámara para tomar una foto. Cierra la app y ve a "Configuración> Apps > Club Potros" y otorga los permisos');
+      Alert.alert('Permisos denegados', 'Necesitas permitir el acceso a la cámara');
       return;
     }
 
@@ -1467,7 +1714,6 @@ const FirmaFotoForm = ({ formData, setFormData, errors, onNext, signatureRef }) 
             type: 'image/jpeg'
           }
         }));
-
       }
     } catch (error) {
       console.error('Error al tomar la foto:', error);
@@ -1476,58 +1722,36 @@ const FirmaFotoForm = ({ formData, setFormData, errors, onNext, signatureRef }) 
 
   return (
     <ScrollView 
-            style={styles.mainContent}
-            contentContainerStyle={styles.scrollContent}
-            showsVerticalScrollIndicator={false}
-            scrollEnabled={Platform.OS === 'ios' || Platform.OS === 'web' ? scrollEnabled : true}
-          >
+      style={styles.mainContent}
+      contentContainerStyle={styles.scrollContent}
+      showsVerticalScrollIndicator={false}
+    >
       <View style={styles.formContainer}>
-        <Text style={styles.title}>Firma y Foto </Text>
+        <Text style={styles.title}>Foto del Jugador</Text>
         
-        <Text style={styles.sectionTitle}>Firma:</Text>
-        <View style={styles.signatureContainer} {...panResponder.panHandlers}>
-          <Svg style={styles.canvas} ref={signatureRef}>
-            {paths.map((path, index) => (
-              <Path
-                key={index}
-                d={getPathData(path)}
-                stroke="black"
-                strokeWidth={3}
-                fill="none"
-              />
-            ))}
-            <Path
-              d={getPathData(currentPath)}
-              stroke="black"
-              strokeWidth={3}
-              fill="none"
-            />
-          </Svg>
-        </View>
-        <TouchableOpacity style={styles.secondaryButton} onPress={clearCanvas}>
-          <Text style={styles.secondaryButtonText}>Limpiar Firma</Text>
-        </TouchableOpacity>
-        {errors.firma && <Text style={styles.errorText}>{errors.firma}</Text>}
-        
-        
-        <Text style={styles.sectionTitle}>Foto del Jugador:</Text>
         {formData.foto_jugador && (
           <Image
-            source={{ uri: formData.foto_jugador.uri }} // Accede a la propiedad uri del objeto
+            source={{ uri: formData.foto_jugador.uri }}
             style={styles.imagePreview}
           />
         )}
+        
         <View style={styles.photoButtonsContainer}>
           <TouchableOpacity style={styles.secondaryButton} onPress={handleTakePhoto}>
             <Text style={styles.secondaryButtonText}>Tomar Foto</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.secondaryButton} onPress={handleSelectFoto}>
-            <Text style={styles.secondaryButtonText}>Seleccionar de Galería</Text>
+            <Text style={styles.secondaryButtonText}>Ver Galería</Text>
           </TouchableOpacity>
         </View>
+        
         {errors.foto_jugador && <Text style={styles.errorText}>{errors.foto_jugador}</Text>}
         
-        <TouchableOpacity style={styles.button} onPress={onNext}>
+        <TouchableOpacity 
+          style={styles.button} 
+          onPress={onNext}
+          disabled={!formData.foto_jugador}
+        >
           <Text style={styles.buttonText}>Continuar</Text>
         </TouchableOpacity>
       </View>
@@ -2011,6 +2235,145 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#333',
     marginLeft: 10,
+  },
+  successContainer: {
+    backgroundColor: '#E8F5E9',
+    padding: 15,
+    borderRadius: 8,
+    marginVertical: 10,
+    borderLeftWidth: 4,
+    borderLeftColor: '#4CAF50',
+    alignItems: 'center',
+  },
+
+  warningContainer: {
+    backgroundColor: '#FFF3E0',
+    padding: 15,
+    borderRadius: 8,
+    marginVertical: 10,
+    borderLeftWidth: 4,
+    borderLeftColor: '#FF9800',
+    alignItems: 'center',
+  },
+
+  warningText: {
+    color: '#F57C00',
+    fontWeight: 'bold',
+    textAlign: 'center',
+    fontSize: 14,
+  },
+
+  signaturePreview: {
+    width: 200,
+    height: 100,
+    marginTop: 10,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 8,
+    alignSelf: 'center',
+  },
+
+  signatureButtonsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    marginTop: 10,
+    marginBottom: 15,
+  },
+
+  signatureButton: {
+    backgroundColor: '#b51f28',
+    paddingHorizontal: 15,
+    paddingVertical: 10,
+    borderRadius: 5,
+    minWidth: 120,
+    alignItems: 'center',
+  },
+
+  clearButton: {
+    backgroundColor: '#dc3545',
+  },
+
+  signatureButtonText: {
+    color: '#fff',
+    fontWeight: 'bold',
+    fontSize: 14,
+  },
+
+  signatureStatus: {
+    color: '#28a745',
+    fontWeight: 'bold',
+    textAlign: 'center',
+    marginTop: 10,
+    fontSize: 16,
+  },
+
+  disabledButton: {
+    backgroundColor: '#cccccc',
+    opacity: 0.6,
+  },
+  successContainer: {
+    backgroundColor: '#E8F5E9',
+    padding: 15,
+    borderRadius: 8,
+    marginVertical: 10,
+    borderLeftWidth: 4,
+    borderLeftColor: '#4CAF50',
+    alignItems: 'center',
+  },
+  warningContainer: {
+    backgroundColor: '#FFF3E0',
+    padding: 15,
+    borderRadius: 8,
+    marginVertical: 10,
+    borderLeftWidth: 4,
+    borderLeftColor: '#FF9800',
+    alignItems: 'center',
+  },
+  warningText: {
+    color: '#F57C00',
+    fontWeight: 'bold',
+    textAlign: 'center',
+    fontSize: 14,
+  },
+  signaturePreview: {
+    width: 200,
+    height: 100,
+    marginTop: 10,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 8,
+    alignSelf: 'center',
+  },
+  signatureButtonsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    marginTop: 10,
+    marginBottom: 15,
+  },
+  signatureButton: {
+    backgroundColor: '#b51f28',
+    paddingHorizontal: 15,
+    paddingVertical: 10,
+    borderRadius: 5,
+    minWidth: 120,
+    alignItems: 'center',
+  },
+  clearButton: {
+    backgroundColor: '#dc3545',
+  },
+  signatureButtonText: {
+    color: '#fff',
+    fontWeight: 'bold',
+    fontSize: 14,
+  },
+  signatureStatus: {
+    color: '#28a745',
+    fontWeight: 'bold',
+    textAlign: 'center',
+    marginTop: 10,
+    fontSize: 16,
   },
 });
 
