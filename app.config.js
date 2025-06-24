@@ -2,7 +2,7 @@ export default {
   expo: {
     name: "ClubPotros",
     slug: "potros-app-dev",
-    version: "1.1.1",
+    version: "1.1.2",
     orientation: "portrait",
     icon: "./assets/logoPotros.jpg",
     userInterfaceStyle: "light",
@@ -15,7 +15,7 @@ export default {
     ios: {
       supportsTablet: true,
       bundleIdentifier: "com.mx.s1sistem.ClubPotros",
-      buildNumber: "2.0.7",
+      buildNumber: "2.0.8",
       icon: "./assets/logoPotros.jpg",
       deploymentTarget: "15.1",
       config: {
