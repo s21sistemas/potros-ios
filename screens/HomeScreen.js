@@ -80,6 +80,63 @@ const HomeScreen = ({ navigation }) => {
     'DocumentacionForm',
   ];
 
+  // Agregar este useEffect justo aquí 👇
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('focus', () => {
+      const routes = navigation.getState()?.routes;
+      const previousRoute = routes?.[routes.length - 2]?.name;
+      
+      if (previousRoute === 'MainTabs') {
+        resetForm();
+      }
+    });
+
+    return unsubscribe;
+  }, [navigation]);
+
+  // Función para resetear el formulario
+  const resetForm = () => {
+    setCurrentStep(0);
+    setFormData({
+      nombre: '',
+      apellido_p: '',
+      apellido_m: '',
+      sexo: '',
+      categoria: '',
+      direccion: '',
+      telefono: '',
+      fecha_nacimiento: new Date(),
+      lugar_nacimiento: '',
+      curp: '',
+      grado_escolar: '',
+      nombre_escuela: '',
+      alergias: '',
+      padecimientos: '',
+      peso: '',
+      tipo_inscripcion: '',
+      foto_jugador: null,
+      firma: '',
+      activo: 'no activo',
+      numero_mfl: '000000',
+      documentos: {
+        ine_tutor: null,
+        curp_jugador: null,
+        acta_nacimiento: null,
+        comprobante_domicilio: null,
+        firma: null
+      },
+      transferencia: {
+        club_anterior: '',
+        temporadas_jugadas: '',
+        motivo_transferencia: ''
+      }
+    });
+    setErrors({});
+    setUploadProgress({});
+    setCurrentUpload(null);
+    fadeAnim.setValue(1);
+  };
+
   
 const safeUploadFile = async ({ uri, name, folder, type = null }) => {
   try {
@@ -507,9 +564,19 @@ const handleSubmit = async () => {
     await processPayments(docRef.id, formData, temporadaActiva);
 
     showAlert(
-      'Registro Exitoso',
-        'Jugador registrado correctamente',
-       [{ text: 'OK', onPress: () => navigation.navigate('MainTabs') }]);
+      '🎉 ¡Jugador Creado Exitosamente!',
+      `El jugador ${formData.nombre} ${formData.apellido_p} ha sido registrado correctamente. ¡Ya puedes ver su información en tu perfil!`,
+      [{ 
+        text: 'Ver Perfil', 
+        onPress: () => {
+          resetForm();
+          // Navegar específicamente al tab de Perfil
+          navigation.navigate('MainTabs', { 
+            screen: 'Perfil' 
+          });
+        }
+      }]
+    );
 
 
 
@@ -859,6 +926,7 @@ const TipoInscripcionForm = ({ formData, setFormData, errors, onNext, navigation
         fecha_reinscripcion: new Date()
       });
 
+      resetForm();
       navigation.navigate('MainTabs');
     } catch (error) {
       console.error('Error al reinscribir:', error);
