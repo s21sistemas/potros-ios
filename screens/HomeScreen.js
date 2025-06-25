@@ -564,19 +564,9 @@ const handleSubmit = async () => {
     await processPayments(docRef.id, formData, temporadaActiva);
 
     showAlert(
-      '🎉 ¡Jugador Creado Exitosamente!',
-      `El jugador ${formData.nombre} ${formData.apellido_p} ha sido registrado correctamente. ¡Ya puedes ver su información en tu perfil!`,
-      [{ 
-        text: 'Ver Perfil', 
-        onPress: () => {
-          resetForm();
-          // Navegar específicamente al tab de Perfil
-          navigation.navigate('MainTabs', { 
-            screen: 'Perfil' 
-          });
-        }
-      }]
-    );
+      'Registro Exitoso',
+      'Jugador registrado correctamente',
+      [{ text: 'OK', onPress: () => navigation.navigate('MainTabs') }]);
 
 
 

@@ -366,7 +366,7 @@ const ProfileScreen = ({ navigation }) => {
 
       <TouchableOpacity
         style={styles.addButton}
-        onPress={() => navigation.navigate('HomeScreen')}
+        onPress={() => navigation.navigate('RegistrarJugador')}
       >
         <View style={styles.addButtonContent}>
           <Ionicons name="add" size={24} color="#fff" />

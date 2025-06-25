@@ -4,6 +4,7 @@ import { createStackNavigator } from '@react-navigation/stack';
 import { StatusBar } from 'expo-status-bar';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
+import { TouchableOpacity } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
 import { auth } from './firebaseConfig';
@@ -24,32 +25,24 @@ const Tab = createBottomTabNavigator();
 // Crear referencia de navegación
 export const navigationRef = createNavigationContainerRef();
 
+// MainTabs SIN el tab de HomeScreen (registro)
 const MainTabs = () => (
   <Tab.Navigator
     screenOptions={({ route }) => ({
       tabBarIcon: ({ focused, color, size }) => {
         let iconName;
-        if (route.name === 'HomeScreen') {
-          iconName = focused ? 'add-circle' : 'add-circle-outline';
-        } else if (route.name === 'Perfil') {
+        if (route.name === 'Perfil') {
           iconName = focused ? 'person' : 'person-outline';
         } else if (route.name === 'Avisos') {
           iconName = focused ? 'notifications' : 'notifications-outline';
         }
         return <Ionicons name={iconName} size={size} color={color} />;
       },
-      tabBarActiveTintColor: '#b51f28',
+      tabBarActiveTintColor: '#b51f28', // Tu color amarillo
       tabBarInactiveTintColor: 'gray',
       tabBarStyle: { backgroundColor: '#fff' },
-      headerStyle: { backgroundColor: '#b51f28' },
-      headerTintColor: '#fff',
     })}
   >
-    <Tab.Screen 
-      name="HomeScreen" 
-      component={HomeScreen}
-      options={{ title: 'Registro' }}
-    />
     <Tab.Screen name="Perfil" component={ProfileScreen} />
     <Tab.Screen name="Avisos" component={AvisosScreen} />
   </Tab.Navigator>
@@ -69,93 +62,118 @@ const App = () => {
           console.log('Usuario actual:', user?.uid || 'No autenticado');
           setIsLoggedIn(!!user);
           setIsLoading(false);
-          setAuthError(null);
         },
         (error) => {
-          console.error('Error de autenticación:', error);
-          setAuthError(error.message);
+          console.error('Error en Auth State:', error);
+          setAuthError('Error de autenticación');
           setIsLoading(false);
         }
       );
     } catch (error) {
-      console.error('Error al configurar auth listener:', error);
-      setAuthError(error.message);
+      console.error('Error configurando auth listener:', error);
+      setAuthError('Error al configurar autenticación');
       setIsLoading(false);
     }
 
-    // Timeout de seguridad
     const timeout = setTimeout(() => {
       if (isLoading) {
-        console.warn('Timeout de autenticación');
+        console.warn('Auth check timeout');
         setIsLoading(false);
       }
-    }, 10000);
+    }, 5000);
 
     return () => {
       clearTimeout(timeout);
-      if (unsubscribe) {
-        unsubscribe();
-      }
+      if (unsubscribe) unsubscribe();
     };
   }, []);
 
   if (isLoading) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#b51f28" />
-        <Text style={styles.loadingText}>Cargando ClubPotros...</Text>
-      </View>
+      <SafeAreaProvider>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#b51f28" />
+          <Text style={styles.loadingText}>Cargando ClubPotros...</Text>
+        </View>
+        <StatusBar style="light" backgroundColor="#b51f28" />
+      </SafeAreaProvider>
     );
   }
 
   return (
     <SafeAreaProvider>
-      <StatusBar style="light" backgroundColor="#b51f28" />
+      <StatusBar style="dark" backgroundColor="#ffffff" />
       <NavigationContainer ref={navigationRef}>
-        <Stack.Navigator 
-          initialRouteName={isLoggedIn ? 'MainTabs' : 'Login'}
-          screenOptions={{
-            headerStyle: { backgroundColor: '#b51f28' },
-            headerTintColor: '#fff',
-          }}
-        >
+        <Stack.Navigator initialRouteName={isLoggedIn ? 'MainTabs' : 'Login'}>
           {!isLoggedIn ? (
             <>
               <Stack.Screen 
                 name="Login" 
-                component={LoginScreen}
-                options={{ headerShown: false }}
+                component={LoginScreen} 
+                options={{ headerShown: false }} 
               />
               <Stack.Screen 
                 name="Register" 
-                component={RegisterScreen}
-                options={{ title: 'Registro' }}
+                component={RegisterScreen} 
+                options={{ headerShown: false }} 
               />
-              <Stack.Screen 
-                name="ForgotPassword" 
+              <Stack.Screen
+                name="ForgotPassword"
                 component={ForgotPasswordScreen}
-                options={{ title: 'Recuperar Contraseña' }}
-              />
-            </>
-          ) : (
-            <>
-              <Stack.Screen 
-                name="MainTabs" 
-                component={MainTabs}
                 options={{ headerShown: false }}
               />
-              <Stack.Screen 
-                name="Pagos" 
-                component={PagosScreen}
-                options={{ title: 'Estado de Pagos' }}
-              />
-              <Stack.Screen 
-                name="Equipamiento" 
-                component={EquipamientoScreen}
-                options={{ title: 'Equipamiento' }}
-              />
             </>
-          )}
+          ) : null}
+
+          <Stack.Screen
+            name="MainTabs"
+            component={MainTabs}
+            options={{ headerShown: false }}
+          />
+          
+          {/* HomeScreen ahora es una pantalla independiente accesible desde Perfil */}
+          <Stack.Screen
+            name="RegistrarJugador"
+            component={HomeScreen}
+            options={({ navigation }) => ({
+              headerLeft: () => (
+                <TouchableOpacity onPress={() => navigation.goBack()} style={{ marginLeft: 15 }}>
+                  <Ionicons name="arrow-back" size={24} color="#fff" />
+                </TouchableOpacity>
+              ),
+              title: 'Registrar Jugador',
+              headerTitleAlign: 'center',
+              headerStyle: { backgroundColor: '#b51f28' },
+              headerTintColor: '#fff',
+            })}
+          />
+          
+          <Stack.Screen
+            name="Pagos"
+            component={PagosScreen}
+            options={({ navigation }) => ({
+              headerLeft: () => (
+                <TouchableOpacity onPress={() => navigation.goBack()} style={{ marginLeft: 15 }}>
+                  <Ionicons name="arrow-back" size={24} color="#000" />
+                </TouchableOpacity>
+              ),
+              title: 'Pagos del Jugador',
+              headerTitleAlign: 'center',
+            })}
+          />
+          <Stack.Screen
+            name="Equipamiento"
+            component={EquipamientoScreen}
+            options={({ navigation }) => ({
+              headerLeft: () => (
+                <TouchableOpacity onPress={() => navigation.goBack()} style={{ marginLeft: 15 }}>
+                  <Ionicons name="arrow-back" size={24} color="#000" />
+                </TouchableOpacity>
+              ),
+              title: 'Equipamiento',
+              headerTitleAlign: 'center',
+            })}
+          />
         </Stack.Navigator>
       </NavigationContainer>
     </SafeAreaProvider>
@@ -167,12 +185,12 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#fff',
+    backgroundColor: '#FFF',
   },
   loadingText: {
-    marginTop: 10,
+    marginTop: 20,
     fontSize: 16,
-    color: '#666',
+    color: '#333',
   },
 });
 
